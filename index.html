@@ -15,7 +15,7 @@ main{max-width:1400px;margin:auto;padding:55px 36px 90px}h1{font-size:clamp(40px
 .controls,.metrics{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);background:var(--navy2)}.cell{padding:18px;border-right:1px solid var(--border)}.cell:last-child{border-right:0}
 label{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-weight:800}select,input{width:100%;background:var(--navy);color:var(--cream);border:1px solid #3b5868;padding:10px}
 .metric-label{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.metric-value{font-size:28px;font-weight:800;margin-top:8px}
-.charts{display:grid;gap:24px}.chart-card{border:1px solid var(--border);background:var(--navy2);padding:20px}.chart-title{font-weight:800;margin-bottom:4px}.chart-sub{color:var(--muted);font-size:11px;margin-bottom:14px}canvas{display:block;width:100%;height:420px}
+.charts{display:grid;gap:24px}.chart-card{border:1px solid var(--border);background:var(--navy2);padding:20px}.chart-title{font-weight:800;margin-bottom:4px}.chart-sub{color:var(--muted);font-size:11px;margin-bottom:14px}canvas{display:block;width:100%;height:420px}.chart-legend{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);color:var(--cream);font-size:11px;font-weight:700}.legend-item{display:inline-flex;align-items:center;gap:8px}.legend-line{display:inline-block;width:30px;height:3px}
 table{width:100%;border-collapse:collapse;background:var(--navy2)}th,td{padding:11px 13px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums}th:first-child,td:first-child{text-align:left}th{font-size:10px;text-transform:uppercase;color:var(--muted)}
 .note{color:var(--muted);font-size:12px;margin-top:10px}.mode-wrap{margin-top:22px}.mode-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:800;margin-bottom:10px}.mode-switch{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);max-width:620px}.mode-btn{background:var(--navy2);color:var(--cream);border:0;border-right:1px solid var(--border);padding:15px 18px;text-align:left;font-size:12px;font-weight:800;cursor:pointer}.mode-btn:last-child{border-right:0}.mode-btn.active{background:var(--green);color:var(--navy)}.mode-help{margin-top:8px;color:var(--muted);font-size:11px}
 @media(max-width:1000px){.controls,.metrics{grid-template-columns:1fr 1fr}}@media(max-width:560px){main,.wrap{padding-left:18px;padding-right:18px}.controls,.metrics{grid-template-columns:1fr}.cell{border-right:0;border-bottom:1px solid var(--border)}}
@@ -45,7 +45,21 @@ function analyze(dataset){const bins=Array.from({length:24},()=>[]),days=new Set
 function calculate(){if(!rows.length||!start.value||!end.value)return;const bins=Array.from({length:24},()=>[]),days=new Set();let valid=0,badTime=0,badPrice=0,outside=0;for(const fd of fileDatasets){const a=analyze(fd.rows);valid+=a.valid;badTime+=a.badTime;badPrice+=a.badPrice;outside+=a.outside;a.days.forEach(d=>days.add(d));for(let h=0;h<24;h++){const c=a.columns;if(!c||!c.date||!c.price)continue;for(const r of fd.rows){const t=parseObservationTime(r[c.date]);if(t&&t.hour===h&&t.dateKey>=start.value&&t.dateKey<=end.value){const p=parsePrice(r[c.price]);if(Number.isFinite(p))bins[h].push(p)}}}}results=bins.map((a,h)=>({h,p10:quantile(a,.1),p50:quantile(a,.5),p90:quantile(a,.9),mean:mean(a),n:a.length}));$("mRows").textContent=valid.toLocaleString();$("mDays").textContent=days.size.toLocaleString();$("mHours").textContent=results.filter(x=>x.n>0).length;$("mFiles").textContent=fileDatasets.length.toLocaleString();$("mFmt").textContent=fileDatasets.every(fd=>{const c=columnsForDataset(fd.rows);return c.date&&norm(c.date).includes("mtu")})?"ENTSO-E":"Mixed / Generic";renderTable();renderCharts();const filesText=fileDatasets.length===1?"1 file":`${fileDatasets.length.toLocaleString()} files`;status.innerHTML=`<strong>${valid.toLocaleString()} valid price observations</strong> from ${rows.length.toLocaleString()} loaded CSV rows across ${filesText}. Rejected: ${badTime.toLocaleString()} timestamp, ${badPrice.toLocaleString()} price, ${outside.toLocaleString()} outside date range. Mode: ${currentMode==="separate"?"SEPARATE FILES":"COMBINED"}.`}
 function num(v){return Number.isFinite(v)?v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):"—"}function renderTable(){body.innerHTML=results.map(r=>`<tr><td>${String(r.h).padStart(2,"0")}:00</td><td>${num(r.p10)}</td><td>${num(r.p50)}</td><td>${num(r.p90)}</td><td>${num(r.mean)}</td><td>${r.n.toLocaleString()}</td></tr>`).join("")}
 function renderCharts(){charts.innerHTML="";if(currentMode==="combined"){createChartCard("Combined dataset",`${fileDatasets.length} file${fileDatasets.length===1?"":"s"}`,results)}else{for(const fd of fileDatasets){const a=analyze(fd.rows);createChartCard(fd.name,`${a.valid.toLocaleString()} valid observations`,a.results)}}}
-function createChartCard(title,subtitle,data){const card=document.createElement("div");card.className="chart-card";const t=document.createElement("div");t.className="chart-title";t.textContent=title;const s=document.createElement("div");s.className="chart-sub";s.textContent=subtitle;const c=document.createElement("canvas");c.setAttribute("role","img");c.setAttribute("aria-label",`${title}. Hourly price distribution chart showing P10, P50 median, P90 and mean.`);card.append(t,s,c);charts.appendChild(card);drawChart(c,data)}
+function createChartCard(title,subtitle,data){
+const card=document.createElement("div");card.className="chart-card";
+const t=document.createElement("div");t.className="chart-title";t.textContent=title;
+const s=document.createElement("div");s.className="chart-sub";s.textContent=subtitle;
+const c=document.createElement("canvas");c.setAttribute("role","img");c.setAttribute("aria-label",`${title}. Hourly price distribution chart showing P10, P50 median, P90 and mean.`);
+const legend=document.createElement("div");legend.className="chart-legend";legend.setAttribute("aria-label","Chart colour key");
+const legendItems=[["#e17b73","P10"],["#b7d63b","P50 (median)"],["#6fc4d8","P90"],["#f4f3ed","Mean"]];
+for(const[color,label]of legendItems){
+const item=document.createElement("span");item.className="legend-item";
+const line=document.createElement("span");line.className="legend-line";line.style.backgroundColor=color;
+const text=document.createElement("span");text.textContent=label;
+item.append(line,text);legend.appendChild(item);
+}
+card.append(t,s,c,legend);charts.appendChild(card);drawChart(c,data);
+}
 function drawChart(canvas,data){
 const ctx=canvas.getContext("2d"),rect=canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1;
 canvas.width=rect.width*ratio;canvas.height=rect.height*ratio;ctx.setTransform(ratio,0,0,ratio,0,0);
@@ -54,16 +68,8 @@ const vals=data.flatMap(r=>[r.p10,r.p50,r.p90,r.mean]).filter(Number.isFinite);
 if(!vals.length){ctx.fillStyle="#9caeb8";ctx.font="13px Arial";ctx.fillText("No valid observations.",25,30);return}
 let lo=Math.min(...vals),hi=Math.max(...vals);if(lo===hi){lo--;hi++}
 const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
-const m={l:88,r:24,t:62,b:64},cw=w-m.l-m.r,ch=h-m.t-m.b,x=i=>m.l+i/23*cw,y=v=>m.t+(1-(v-lo)/(hi-lo))*ch;
+const m={l:88,r:24,t:22,b:64},cw=w-m.l-m.r,ch=h-m.t-m.b,x=i=>m.l+i/23*cw,y=v=>m.t+(1-(v-lo)/(hi-lo))*ch;
 const series=[["p10","#e17b73","P10"],["p50","#b7d63b","P50 (median)"],["p90","#6fc4d8","P90"],["mean","#f4f3ed","Mean"]];
-
-ctx.font="11px Arial";ctx.textAlign="left";ctx.textBaseline="middle";
-let legendX=m.l;
-for(const[,color,label]of series){
-ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(legendX,25);ctx.lineTo(legendX+24,25);ctx.stroke();
-ctx.fillStyle="#f4f3ed";ctx.fillText(label,legendX+31,25);
-legendX+=31+ctx.measureText(label).width+24;
-}
 
 ctx.font="11px Arial";ctx.lineWidth=1;ctx.textBaseline="alphabetic";
 for(let i=0;i<=5;i++){
